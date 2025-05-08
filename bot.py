@@ -17,7 +17,9 @@ user_state = {}
 user_temp_data = {}
 
 main_menu_options = [
+    [InlineKeyboardButton("🛌 Day Off", callback_data='day_off')],
     [InlineKeyboardButton("🏖 Vacation", callback_data='vacation_entry')],
+    [InlineKeyboardButton("💼 Business Trip", callback_data='business_trip')],
 ]
 
 vacation_submenu_options = [
@@ -44,6 +46,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "vacation_entry":
         await query.message.reply_text("Vacation mode:", reply_markup=InlineKeyboardMarkup(vacation_submenu_options))
+    elif query.data == "business_trip":
+        await query.message.reply_text("Choose a time zone:", reply_markup=InlineKeyboardMarkup(timezone_options))
     elif query.data == "vacation_with_date":
         user_state[user_id] = "vacation_waiting_date"
         await query.message.reply_text("Until what date? (e.g., 15.06)")
