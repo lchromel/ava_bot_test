@@ -29,6 +29,9 @@ timezone_options = [
     [InlineKeyboardButton("🇵🇰 PAKISTAN (MSK +2)", callback_data='business_trip_pakistan')],
 ]
 
+FONT_PATH = "fonts/YangoText_Bd.ttf"
+FONT_SIZE = 92
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(overlay_options))
 
@@ -101,15 +104,14 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             date_text = vacation_data.get("date")
             if date_text:
                 draw = ImageDraw.Draw(combined)
-                font_size = 200
                 try:
-                    font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
-                except:
+                    font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
+                except Exception as e:
+                    logger.error(f"Font loading error: {e}")
                     font = ImageFont.load_default()
                 text = f"Till {date_text}"
                 bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
                 x = (combined.width - text_width) // 2
                 y = int(combined.height * 0.85)
                 draw.text((x+2, y+2), text, font=font, fill="black")
