@@ -5,7 +5,8 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import os
 import logging
-import openai  # библиотека OpenAI для генерации изображения
+import openai
+import requests
 
 # Логирование
 logging.basicConfig(
@@ -40,8 +41,7 @@ timezone_options = [
 FONT_PATH = "fonts/YangoText_Bd.ttf"
 FONT_SIZE = 120
 
-# Вставьте свой ключ
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(main_menu_options))
@@ -116,13 +116,14 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             city = user_temp_data.get(user_id, {}).get("city", "a beautiful place")
             prompt = f"Generate a square image in Studio Ghibli style, with the environment designed as if I’m traveling in {city}."
 
-            response = openai.Image.create(
+            response = client.images.generate(
+                model="dall-e-3",
                 prompt=prompt,
-                n=1,
-                size="512x512"
+                size="1024x1024",
+                quality="standard",
+                n=1
             )
-            img_url = response["data"][0]["url"]
-            import requests
+            img_url = response.data[0].url
             ghibli_image = Image.open(io.BytesIO(requests.get(img_url).content)).convert("RGBA").resize((1280, 1280))
 
             overlay_path = "overlays/vacation.png"
