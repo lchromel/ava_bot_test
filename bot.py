@@ -113,7 +113,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = bbox[2] - bbox[0]
                 x = (combined.width - text_width) // 2
-                y = int(combined.height * 0.7)
+                y = int(combined.height * 0.78)
                 draw.text((x+2, y+2), text, font=font, fill="black")
                 draw.text((x, y), text, font=font, fill="white")
 
