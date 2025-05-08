@@ -16,11 +16,13 @@ logger = logging.getLogger(__name__)
 user_state = {}
 user_temp_data = {}
 
-overlay_options = [
-    [InlineKeyboardButton("🛌 Day Off", callback_data='day_off')],
+main_menu_options = [
+    [InlineKeyboardButton("🏖 Vacation", callback_data='vacation_entry')],
+]
+
+vacation_submenu_options = [
     [InlineKeyboardButton("🏖 Vacation (no date)", callback_data='vacation')],
     [InlineKeyboardButton("🏖 Vacation (with date)", callback_data='vacation_with_date')],
-    [InlineKeyboardButton("💼 Business Trip", callback_data='business_trip')],
 ]
 
 timezone_options = [
@@ -33,15 +35,15 @@ FONT_PATH = "fonts/YangoText_Bd.ttf"
 FONT_SIZE = 120
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(overlay_options))
+    await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(main_menu_options))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
 
-    if query.data == "business_trip":
-        await query.message.reply_text("Choose a time zone:", reply_markup=InlineKeyboardMarkup(timezone_options))
+    if query.data == "vacation_entry":
+        await query.message.reply_text("Vacation mode:", reply_markup=InlineKeyboardMarkup(vacation_submenu_options))
     elif query.data == "vacation_with_date":
         user_state[user_id] = "vacation_waiting_date"
         await query.message.reply_text("Until what date? (e.g., 15.06)")
@@ -132,7 +134,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_state.pop(user_id, None)
     user_temp_data.pop(user_id, None)
 
-    await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(overlay_options))
+    await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Unhandled exception occurred:", exc_info=context.error)
