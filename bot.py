@@ -101,7 +101,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             date_text = vacation_data.get("date")
             if date_text:
                 draw = ImageDraw.Draw(combined)
-                font_size = 92
+                font_size = 200
                 try:
                     font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
                 except:
