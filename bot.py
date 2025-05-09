@@ -114,7 +114,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Generating your avatar...")
 
             city = user_temp_data.get(user_id, {}).get("city", "a beautiful place")
-            prompt = f"Generate a square image in Studio Ghibli style, with the environment designed as if I’m traveling in {city}."
+            prompt = f"Portrait of a joyful tourist animal character visiting {city}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
 
             response = client.images.generate(
                 model="dall-e-3",
@@ -126,7 +126,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             img_url = response.data[0].url
             ghibli_image = Image.open(io.BytesIO(requests.get(img_url).content)).convert("RGBA").resize((1280, 1280))
 
-            overlay_path = "overlays/vacation.png"
+            overlay_path = "overlays/vacation2.png"
             overlay = Image.open(overlay_path).convert("RGBA").resize((1280, 1280))
             combined = Image.alpha_composite(ghibli_image, overlay)
 
