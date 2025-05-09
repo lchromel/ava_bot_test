@@ -37,7 +37,7 @@ main_menu_options = [
 vacation_overlay_path = "overlays/vacation2.png"
 
 def is_valid_city_country(text: str) -> bool:
-    return "," in text and len(text.split(",")) == 2 and all(part.strip() for part in text.split(","))
+    return bool(text.strip())
 
 def optimize_prompt_with_gpt4(raw_prompt: str) -> str:
     messages = [
@@ -45,7 +45,7 @@ def optimize_prompt_with_gpt4(raw_prompt: str) -> str:
         {"role": "user", "content": raw_prompt}
     ]
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-vision-preview",
         messages=messages,
         max_tokens=500
     )
@@ -53,7 +53,7 @@ def optimize_prompt_with_gpt4(raw_prompt: str) -> str:
 
 def generate_ghibli_image(prompt: str) -> Image.Image:
     response = client.images.generate(
-        model="dall-e-3",
+        model="gpt-4-vision-preview",
         prompt=prompt,
         size="1024x1024",
         quality="standard",
