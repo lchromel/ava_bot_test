@@ -2,13 +2,17 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from PIL import Image, ImageDraw, ImageFont
+import openai
 import io
 import os
 import logging
-import openai
 import requests
 
-# Логирование
+# Конфигурация OpenAI
+openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai.OpenAI(api_key=openai.api_key)
+
+# Telegram logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -17,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 user_state = {}
 user_temp_data = {}
+
+FONT_PATH = "fonts/YangoText_Bd.ttf"
+FONT_SIZE = 120
 
 main_menu_options = [
     [InlineKeyboardButton("🛌 Day Off", callback_data='day_off')],
@@ -27,21 +34,34 @@ main_menu_options = [
     [InlineKeyboardButton("🧪 Test", callback_data='test_city')],
 ]
 
-vacation_submenu_options = [
-    [InlineKeyboardButton("🏖 Vacation (no date)", callback_data='vacation')],
-    [InlineKeyboardButton("🏖 Vacation (with date)", callback_data='vacation_with_date')],
-]
+vacation_overlay_path = "overlays/vacation2.png"
 
-timezone_options = [
-    [InlineKeyboardButton("🌎 LATAM (MSK –8)", callback_data='business_trip_latam')],
-    [InlineKeyboardButton("🌍 AFRICA (MSK –3)", callback_data='business_trip_africa')],
-    [InlineKeyboardButton("🇵🇰 PAKISTAN (MSK +2)", callback_data='business_trip_pakistan')],
-]
+def is_valid_city_country(text: str) -> bool:
+    return "," in text and len(text.split(",")) == 2 and all(part.strip() for part in text.split(","))
 
-FONT_PATH = "fonts/YangoText_Bd.ttf"
-FONT_SIZE = 120
+def optimize_prompt_with_gpt4(raw_prompt: str) -> str:
+    messages = [
+        {"role": "system", "content": "You are a prompt engineer for DALL·E 3. Rewrite the input to maximize visual detail and quality."},
+        {"role": "user", "content": raw_prompt}
+    ]
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=messages,
+        max_tokens=500
+    )
+    return response.choices[0].message.content.strip()
 
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+def generate_ghibli_image(prompt: str) -> Image.Image:
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt=prompt,
+        size="1024x1024",
+        quality="standard",
+        n=1
+    )
+    img_url = response.data[0].url
+    img_data = requests.get(img_url).content
+    return Image.open(io.BytesIO(img_data)).convert("RGBA")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(main_menu_options))
@@ -51,122 +71,54 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
 
-    if query.data == "vacation_entry":
-        await query.message.reply_text("Vacation mode:", reply_markup=InlineKeyboardMarkup(vacation_submenu_options))
-    elif query.data == "business_trip":
-        await query.message.reply_text("Choose a time zone:", reply_markup=InlineKeyboardMarkup(timezone_options))
-    elif query.data == "vacation_with_date":
-        user_state[user_id] = "vacation_waiting_date"
-        await query.message.reply_text("Until what date? (e.g., 15.06)")
-    elif query.data == "test_city":
-        user_state[user_id] = "test_waiting_city"
-        await query.message.reply_text("Which city are you flying to?")
+    if query.data == "test_city":
+        user_state[user_id] = "test_waiting_location"
+        await query.message.reply_text("Please enter city and country (e.g., Tokyo, Japan):")
     else:
-        user_state[user_id] = query.data
-        await query.message.reply_text("Now send me your photo.")
+        await query.message.reply_text("Feature in development.")
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     state = user_state.get(user_id)
 
-    if state == "vacation_waiting_date":
-        user_state[user_id] = "vacation"
-        user_temp_data[user_id] = {"date": update.message.text.strip()}
-        await update.message.reply_text("Thanks! Now send me your photo.")
-    elif state == "test_waiting_city":
-        user_state[user_id] = "test_waiting_photo"
-        user_temp_data[user_id] = {"city": update.message.text.strip()}
-        await update.message.reply_text("Great! Now send me your photo.")
-    else:
-        await update.message.reply_text("Please choose avatar type first: /start")
-
-async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    overlay_type = user_state.get(user_id)
-
-    if not overlay_type:
-        await update.message.reply_text("Please choose avatar type first: /start")
-        return
-
-    try:
-        if update.message.photo:
-            photo_file = await update.message.photo[-1].get_file()
-        elif update.message.document and update.message.document.mime_type.startswith("image/"):
-            photo_file = await update.message.document.get_file()
-        else:
-            await update.message.reply_text("Please send an image file or photo.")
+    if state == "test_waiting_location":
+        location = update.message.text.strip()
+        if not is_valid_city_country(location):
+            await update.message.reply_text("❌ Format must be: City, Country (e.g., Tokyo, Japan)")
             return
 
-        photo_bytes = await photo_file.download_as_bytearray()
-        user_img = Image.open(io.BytesIO(photo_bytes)).convert("RGBA")
+        await update.message.reply_text("🧠 Generating your avatar... please wait a moment!")
 
-        width, height = user_img.size
-        min_dim = min(width, height)
-        user_img = user_img.crop((
-            (width - min_dim) // 2,
-            (height - min_dim) // 2,
-            (width + min_dim) // 2,
-            (height + min_dim) // 2
-        ))
-        user_img = user_img.resize((1280, 1280))
+        # Формируем промпт
+        base_prompt = (
+            f"Portrait of a joyful tourist animal character visiting {location}. "
+            "The animal is native or symbolic to the destination, but varies each time. "
+            "The character wears stylish, lokal designer-inspired clothing with unique cultural references. "
+            "Surrounded by two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. "
+            "Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
+        )
 
-        if overlay_type == "test_waiting_photo":
-            await update.message.reply_text("Generating your avatar...")
+        try:
+            enhanced_prompt = optimize_prompt_with_gpt4(base_prompt)
+            img = generate_ghibli_image(enhanced_prompt)
 
-            city = user_temp_data.get(user_id, {}).get("city", "a beautiful place")
-            prompt = f"Portrait of a joyful tourist animal character visiting {city}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
+            # Добавим vacation-оверлей
+            if os.path.exists(vacation_overlay_path):
+                overlay = Image.open(vacation_overlay_path).convert("RGBA").resize(img.size)
+                img = Image.alpha_composite(img, overlay)
 
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=prompt,
-                size="1024x1024",
-                quality="standard",
-                n=1
-            )
-            img_url = response.data[0].url
-            ghibli_image = Image.open(io.BytesIO(requests.get(img_url).content)).convert("RGBA").resize((1280, 1280))
+            output = io.BytesIO()
+            output.name = "avatar.png"
+            img.save(output, "PNG")
+            output.seek(0)
 
-            overlay_path = "overlays/vacation2.png"
-            overlay = Image.open(overlay_path).convert("RGBA").resize((1280, 1280))
-            combined = Image.alpha_composite(ghibli_image, overlay)
+            await update.message.reply_document(document=InputFile(output), filename="avatar.png")
+        except Exception as e:
+            logger.error(f"Test generation failed: {e}")
+            await update.message.reply_text("❌ Something went wrong during generation. Please try again later.")
 
-        else:
-            overlay_path = f"overlays/{overlay_type}.png"
-            overlay = Image.open(overlay_path).convert("RGBA").resize(user_img.size)
-            combined = Image.alpha_composite(user_img, overlay)
-
-            if overlay_type == "vacation":
-                vacation_data = user_temp_data.get(user_id, {})
-                date_text = vacation_data.get("date")
-                if date_text:
-                    draw = ImageDraw.Draw(combined)
-                    try:
-                        font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
-                    except:
-                        font = ImageFont.load_default()
-                    text = f"Till {date_text}"
-                    bbox = draw.textbbox((0, 0), text, font=font)
-                    text_width = bbox[2] - bbox[0]
-                    x = (combined.width - text_width) // 2
-                    y = int(combined.height * 0.78)
-                    draw.text((x+2, y+2), text, font=font, fill="black")
-                    draw.text((x, y), text, font=font, fill="white")
-
-        output = io.BytesIO()
-        output.name = "avatar.png"
-        combined.save(output, "PNG")
-        output.seek(0)
-
-        await update.message.reply_document(document=InputFile(output), filename="avatar.png")
-
-    except Exception as e:
-        logger.error(f"Image generation error: {e}")
-        await update.message.reply_text("Something went wrong. Please try again later.")
-
-    user_state.pop(user_id, None)
-    user_temp_data.pop(user_id, None)
-
-    await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
+        user_state.pop(user_id, None)
+        await update.message.reply_text("Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Unhandled exception occurred:", exc_info=context.error)
@@ -178,7 +130,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), text_handler))
-    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, image_handler))
     app.add_error_handler(error_handler)
 
     app.run_polling()
