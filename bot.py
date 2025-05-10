@@ -111,7 +111,7 @@ async def generate_ai_image(location: str) -> Image.Image:
         prompt = f"Portrait of a joyful tourist animal character visiting {location}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
         
         response = client.images.generate(
-            model="dall-e-3",
+            model="gpt-4-vision-preview",
             prompt=prompt,
             size="1024x1024",
             quality="standard",
