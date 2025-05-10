@@ -131,11 +131,11 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             draw.text((x, y), text, font=font, fill="white")
 
         output = io.BytesIO()
-        output.name = "avatar.png"
+        output.name = "Yango_avatar.png"
         combined.save(output, "PNG")
         output.seek(0)
 
-        await update.message.reply_document(document=InputFile(output), filename="avatar.png")
+        await update.message.reply_document(document=InputFile(output), filename="Yango_avatar.png")
 
         if isinstance(state, dict) and state["type"] == "vacation":
             await update.message.reply_text(f"Vacation avatar created for {state['date']}! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
@@ -251,11 +251,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Save and send
             output = io.BytesIO()
-            output.name = "avatar.png"
+            output.name = "Yango_avatar.png"
             combined.save(output, "PNG")
             output.seek(0)
             
-            await update.message.reply_document(document=InputFile(output), filename="avatar.png")
+            await update.message.reply_document(document=InputFile(output), filename="Yango_avatar.png")
             user_state.pop(user_id, None)
             await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
             
