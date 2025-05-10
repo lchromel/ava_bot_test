@@ -114,7 +114,7 @@ async def generate_ai_image(location: str) -> Image.Image:
             model="gpt-image-1",
             prompt=prompt,
             size="1024x1024",
-            quality="standard",
+            quality="medium",
             n=1,
         )
         
