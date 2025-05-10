@@ -184,27 +184,31 @@ async def generate_ai_image(location: str) -> Image.Image:
             logger.error("First data item is empty")
             raise ValueError("Invalid data format in response")
             
-        if not hasattr(response.data[0], 'url'):
-            logger.error(f"Data item has no URL. Data: {response.data[0]}")
-            raise ValueError("No URL in response data")
-            
-        image_url = response.data[0].url
-        if not image_url:
-            logger.error("URL is empty")
-            raise ValueError("Empty URL in response")
-            
-        logger.info(f"Generated image URL: {image_url}")
+        image_data = response.data[0]
         
-        try:
-            response = requests.get(image_url, timeout=120)
-            if response.status_code != 200:
-                logger.error(f"Failed to download image. Status code: {response.status_code}")
-                raise ValueError(f"Failed to download image: HTTP {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error: {str(e)}")
-            raise ValueError(f"Failed to download image: {str(e)}")
+        # Handle base64 response
+        if hasattr(image_data, 'b64_json') and image_data.b64_json:
+            logger.info("Processing base64 image data")
+            import base64
+            image_bytes = base64.b64decode(image_data.b64_json)
+            return Image.open(io.BytesIO(image_bytes)).convert("RGBA")
             
-        return Image.open(io.BytesIO(response.content)).convert("RGBA")
+        # Handle URL response
+        if hasattr(image_data, 'url') and image_data.url:
+            logger.info(f"Processing image from URL: {image_data.url}")
+            try:
+                response = requests.get(image_data.url, timeout=120)
+                if response.status_code != 200:
+                    logger.error(f"Failed to download image. Status code: {response.status_code}")
+                    raise ValueError(f"Failed to download image: HTTP {response.status_code}")
+                return Image.open(io.BytesIO(response.content)).convert("RGBA")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error: {str(e)}")
+                raise ValueError(f"Failed to download image: {str(e)}")
+        
+        logger.error("No valid image data found in response")
+        raise ValueError("No valid image data found in response")
+            
     except Exception as e:
         logger.error(f"Failed to generate AI image: {str(e)}")
         raise
