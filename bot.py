@@ -245,8 +245,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Resize to match our standard size
             user_img = user_img.resize((1280, 1280))
             
-            # Apply overlay
-            overlay = Image.open(VACATION_OVERLAY_PATH).convert("RGBA").resize(user_img.size)
+            # Apply overlay - use vacation2.png for AI vacation
+            overlay = Image.open("overlays/vacation2.png").convert("RGBA").resize(user_img.size)
             combined = Image.alpha_composite(user_img, overlay)
             
             # Save and send
