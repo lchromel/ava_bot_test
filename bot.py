@@ -21,7 +21,7 @@ user_state = {}
 
 FONT_PATH = "fonts/YangoText_Bd.ttf"
 FONT_SIZE = 120
-VACATION_OVERLAY_PATH = "overlays/vacation2.png"
+VACATION_OVERLAY_PATH = "overlays/vacation.png"
 
 main_menu_options = [
     [InlineKeyboardButton("🛌 Day Off", callback_data='day_off')],
@@ -111,6 +111,25 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         overlay = Image.open(overlay_path).convert("RGBA").resize(user_img.size)
         combined = Image.alpha_composite(user_img, overlay)
 
+        # Add text overlay for vacation
+        if isinstance(state, dict) and state["type"] == "vacation" and state.get("date"):
+            draw = ImageDraw.Draw(combined)
+            try:
+                font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
+            except Exception as e:
+                logger.error(f"Font loading error: {e}")
+                font = ImageFont.load_default()
+            
+            text = f"Till {state['date']}"
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            x = (combined.width - text_width) // 2
+            y = int(combined.height * 0.78)
+            
+            # Add shadow effect
+            draw.text((x+2, y+2), text, font=font, fill="black")
+            draw.text((x, y), text, font=font, fill="white")
+
         output = io.BytesIO()
         output.name = "avatar.png"
         combined.save(output, "PNG")
@@ -133,6 +152,7 @@ async def generate_ai_image(location: str) -> Image.Image:
     try:
         prompt = f"Portrait of a joyful tourist animal character visiting {location}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
         
+        logger.info(f"Generating AI image for location: {location}")
         response = client.images.generate(
             model="gpt-image-1",
             prompt=prompt,
@@ -141,11 +161,21 @@ async def generate_ai_image(location: str) -> Image.Image:
             n=1,
         )
         
+        if not response or not response.data or not response.data[0].url:
+            logger.error("No valid image URL in response")
+            raise ValueError("Failed to generate image: No valid URL received")
+            
         image_url = response.data[0].url
+        logger.info(f"Generated image URL: {image_url}")
+        
         response = requests.get(image_url)
+        if response.status_code != 200:
+            logger.error(f"Failed to download image. Status code: {response.status_code}")
+            raise ValueError(f"Failed to download image: HTTP {response.status_code}")
+            
         return Image.open(io.BytesIO(response.content)).convert("RGBA")
     except Exception as e:
-        logger.error(f"Failed to generate AI image: {e}")
+        logger.error(f"Failed to generate AI image: {str(e)}")
         raise
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -209,7 +239,7 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN environment variable is not set")
         return
         
-    app = ApplicationBuilder().token(token).build()
+    app = ApplicationBuilder().token(token).connect_timeout(30.0).read_timeout(30.0).write_timeout(30.0).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
