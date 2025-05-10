@@ -6,6 +6,7 @@ import io
 import os
 import logging
 import requests
+from datetime import datetime
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 client = openai.OpenAI(api_key=openai.api_key)
@@ -40,6 +41,20 @@ timezone_options = [
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Choose avatar type:", reply_markup=InlineKeyboardMarkup(main_menu_options))
 
+def is_valid_date(date_str: str) -> bool:
+    try:
+        # Only accept DD.MM format
+        date = datetime.strptime(date_str, '%d.%m')
+        # Create a date object for the current year
+        current_year = datetime.now().year
+        full_date = datetime(current_year, date.month, date.day)
+        # Check if date is not in the past
+        if full_date.date() < datetime.now().date():
+            return False
+        return True
+    except ValueError:
+        return False
+
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -47,18 +62,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "business_trip":
         await query.message.reply_text("Choose a time zone:", reply_markup=InlineKeyboardMarkup(timezone_options))
+    elif query.data == "vacation":
+        user_state[user_id] = {"type": query.data, "step": "date"}
+        await query.message.reply_text("When are you going? (Please enter the date in DD.MM format, e.g., 25.12)")
     elif query.data == "ai_vacation":
         user_state[user_id] = query.data
         await query.message.reply_text("Where are you going to?")
     else:
         user_state[user_id] = query.data
-        await update.message.reply_text("Now send me your photo.")
+        await query.message.reply_text("Now send me your photo.")
 
 async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    overlay_type = user_state.get(user_id)
+    state = user_state.get(user_id)
 
-    if not overlay_type:
+    if not state:
         await update.message.reply_text("Please choose avatar type first: /start")
         return
 
@@ -84,6 +102,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ))
         user_img = user_img.resize((1280, 1280))
 
+        overlay_type = state["type"] if isinstance(state, dict) else state
         overlay_path = f"overlays/{overlay_type}.png" if overlay_type != "vacation" else VACATION_OVERLAY_PATH
         if not os.path.exists(overlay_path):
             await update.message.reply_text(f"Overlay '{overlay_type}' not found.")
@@ -99,12 +118,16 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_document(document=InputFile(output), filename="avatar.png")
 
+        if isinstance(state, dict) and state["type"] == "vacation":
+            await update.message.reply_text(f"Vacation avatar created for {state['date']}! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
+        else:
+            await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
+
     except Exception as e:
         logger.error(f"Failed to process image: {e}")
         await update.message.reply_text("An error occurred while processing your image. Please try again later.")
 
     user_state.pop(user_id, None)
-    await update.message.reply_text("Avatar created! Want to try again?", reply_markup=InlineKeyboardMarkup(main_menu_options))
 
 async def generate_ai_image(location: str) -> Image.Image:
     try:
@@ -128,6 +151,19 @@ async def generate_ai_image(location: str) -> Image.Image:
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     state = user_state.get(user_id)
+
+    if not state:
+        return
+
+    if isinstance(state, dict) and state["type"] == "vacation":
+        if state["step"] == "date":
+            date_str = update.message.text.strip()
+            if not is_valid_date(date_str):
+                await update.message.reply_text("Please enter a valid future date in DD.MM format (e.g., 25.12)")
+                return
+            
+            user_state[user_id] = {"type": "vacation", "step": "photo", "date": date_str}
+            await update.message.reply_text("Now send me your photo.")
 
     if state == "ai_vacation":
         try:
@@ -168,7 +204,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.error("Unhandled exception occurred:", exc_info=context.error)
 
 def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "PASTE_YOUR_TOKEN_HERE")
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.error("TELEGRAM_BOT_TOKEN environment variable is not set")
+        return
+        
     app = ApplicationBuilder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -177,6 +217,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     app.add_error_handler(error_handler)
 
+    logger.info("Bot started successfully")
     app.run_polling()
 
 if __name__ == '__main__':
