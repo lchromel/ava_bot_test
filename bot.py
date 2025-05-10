@@ -153,25 +153,56 @@ async def generate_ai_image(location: str) -> Image.Image:
         prompt = f"Portrait of a joyful tourist animal character visiting {location}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
         
         logger.info(f"Generating AI image for location: {location}")
-        response = client.images.generate(
-            model="gpt-image-1",
-            prompt=prompt,
-            size="1024x1024",
-            quality="medium",
-            n=1,
-        )
+        logger.info(f"Using prompt: {prompt}")
         
-        if not response or not response.data or not response.data[0].url:
-            logger.error("No valid image URL in response")
-            raise ValueError("Failed to generate image: No valid URL received")
+        try:
+            response = client.images.generate(
+                model="gpt-image-1",
+                prompt=prompt,
+                size="1024x1024",
+                quality="medium",
+                n=1,
+            )
+            logger.info(f"API Response: {response}")
+        except Exception as api_error:
+            logger.error(f"API Error: {str(api_error)}")
+            raise ValueError(f"API Error: {str(api_error)}")
+        
+        if not response:
+            logger.error("Empty response from API")
+            raise ValueError("Empty response from API")
+            
+        if not hasattr(response, 'data'):
+            logger.error(f"Response has no data attribute. Response: {response}")
+            raise ValueError("Invalid response format: no data attribute")
+            
+        if not response.data:
+            logger.error("Response data is empty")
+            raise ValueError("No image data in response")
+            
+        if not response.data[0]:
+            logger.error("First data item is empty")
+            raise ValueError("Invalid data format in response")
+            
+        if not hasattr(response.data[0], 'url'):
+            logger.error(f"Data item has no URL. Data: {response.data[0]}")
+            raise ValueError("No URL in response data")
             
         image_url = response.data[0].url
+        if not image_url:
+            logger.error("URL is empty")
+            raise ValueError("Empty URL in response")
+            
         logger.info(f"Generated image URL: {image_url}")
         
-        response = requests.get(image_url)
-        if response.status_code != 200:
-            logger.error(f"Failed to download image. Status code: {response.status_code}")
-            raise ValueError(f"Failed to download image: HTTP {response.status_code}")
+        try:
+            response = requests.get(image_url, timeout=120)
+            if response.status_code != 200:
+                logger.error(f"Failed to download image. Status code: {response.status_code}")
+                raise ValueError(f"Failed to download image: HTTP {response.status_code}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error: {str(e)}")
+            raise ValueError(f"Failed to download image: {str(e)}")
             
         return Image.open(io.BytesIO(response.content)).convert("RGBA")
     except Exception as e:
