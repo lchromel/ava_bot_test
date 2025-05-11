@@ -100,7 +100,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (width + min_dim) // 2,
             (height + min_dim) // 2
         ))
-        user_img = user_img.resize((1280, 1280))
+        user_img = user_img.resize((1024, 1024))
 
         overlay_type = state["type"] if isinstance(state, dict) else state
         overlay_path = f"overlays/{overlay_type}.png" if overlay_type != "vacation" else VACATION_OVERLAY_PATH
@@ -150,7 +150,7 @@ async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def generate_ai_image(location: str) -> Image.Image:
     try:
-        prompt = f"Portrait of a tourist animal character visiting {location}. The animal is native or symbolic to the destination, but varies each time. The character wears stylish, lokal designer-inspired clothing with unique cultural references. Surrounded by a two unexpected, whimsical travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format."
+        prompt = f"Portrait of a fashionable animal tourist character visiting {location}. The animal is native or symbolic to the destination, but varies each time. The character wears fancy stylish, designer-inspired clothing. The character is accessorized with elegant sunglasses or rings or earrings or necklaces that match its unique look. Surrounded by a unexpected, whimsical lokal travel items or accessories — playful, imaginative, and different in every generation. Pixar-style 3D rendering, highly expressive face. Solid bright red background. Square 1:1 avatar format"
         
         logger.info(f"Generating AI image for location: {location}")
         logger.info(f"Using prompt: {prompt}")
@@ -243,7 +243,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_img = await generate_ai_image(location)
             
             # Resize to match our standard size
-            user_img = user_img.resize((1280, 1280))
+            user_img = user_img.resize((1024, 1024))
             
             # Apply overlay - use vacation2.png for AI vacation
             overlay = Image.open("overlays/vacation2.png").convert("RGBA").resize(user_img.size)
